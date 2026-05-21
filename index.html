@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪吃蛇 - 皮肤收藏版</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; background: #0a0a1a;
+    font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+    user-select: none;
+  }
+  .main { display: flex; gap: 24px; align-items: flex-start; padding: 20px; max-width: 900px; width: 100%; }
+  .game-panel { flex-shrink: 0; }
+
+  h1 { color: #e94560; text-align: center; margin-bottom: 8px; font-size: 1.8rem; letter-spacing: 6px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 10px; }
+  .score-group { display: flex; gap: 10px; align-items: center; }
+  .badge { padding: 3px 12px; border-radius: 12px; font-weight: bold; font-size: 0.85rem; color: #fff; }
+  .badge-score { background: #e94560; }
+  .badge-high { background: #533483; }
+  .badge-skin { background: #0f3460; font-weight: normal; font-size: 0.75rem; }
+
+  .progress-wrap { height: 4px; background: #1a1a3e; border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #e94560, #f39c12); border-radius: 2px; transition: width 0.3s; }
+  .progress-label { color: #666; font-size: 0.7rem; text-align: right; margin-bottom: 2px; }
+
+  .canvas-wrap { position: relative; display: inline-block; line-height: 0; }
+  canvas { border: 2px solid #e94560; border-radius: 6px; background: #0f0f23; display: block; }
+
+  /* Overlay */
+  .overlay {
+    position: absolute; inset: 2px; border-radius: 6px;
+    background: rgba(5,5,20,0.85); display: flex;
+    justify-content: center; align-items: center; z-index: 10;
+    transition: opacity 0.25s;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .overlay-content { text-align: center; }
+  .overlay h2 { color: #e94560; font-size: 2rem; letter-spacing: 6px; margin-bottom: 12px; }
+  .overlay .final-score { color: #aaa; font-size: 1rem; margin-bottom: 16px; }
+  .overlay .final-score b { color: #f39c12; font-size: 1.3rem; }
+  .overlay button {
+    padding: 10px 36px; font-size: 1.1rem; background: #e94560; color: #fff;
+    border: none; border-radius: 20px; cursor: pointer; letter-spacing: 3px;
+    font-family: inherit; transition: background 0.2s, transform 0.1s;
+  }
+  .overlay button:hover { background: #c23152; }
+  .overlay button:active { transform: scale(0.95); }
+  .diff-group { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+  .diff-btn {
+    padding: 5px 14px; font-size: 0.8rem; background: #1a1a3e; color: #888;
+    border: 2px solid transparent; border-radius: 14px; cursor: pointer;
+    font-family: inherit; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .diff-btn:hover { color: #ddd; border-color: #444; }
+  .diff-btn.sel { color: #fff; border-color: #e94560; background: #2a1a3e; }
+  .diff-badge {
+    padding: 3px 10px; border-radius: 10px; font-size: 0.75rem;
+    font-weight: bold; letter-spacing: 1px;
+  }
+
+  .float-text {
+    position: absolute; pointer-events: none; font-weight: bold;
+    color: #f39c12; font-size: 0.95rem; animation: floatUp 0.6s ease-out forwards; z-index: 5;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-30px); }
+  }
+
+  .msg { color: #e94560; font-size: 0.95rem; height: 22px; text-align: center; margin-top: 2px; }
+  .tips { margin-top: 8px; color: #555; font-size: 0.75rem; text-align: center; }
+  .tips span { color: #e94560; }
+
+  button.sound-btn {
+    width: 32px; height: 32px; padding: 0; border-radius: 50%;
+    font-size: 1.1rem; line-height: 32px; text-align: center;
+    background: #1a1a3e; border: none; color: #fff; cursor: pointer; flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  button.sound-btn:hover { background: #2a2a5e; }
+
+  /* Skin panel */
+  .skin-panel { background: #111128; border-radius: 10px; padding: 14px; border: 1px solid #222; width: 220px; }
+  .skin-panel h3 { color: #e94560; font-size: 1rem; text-align: center; margin-bottom: 10px; letter-spacing: 3px; }
+  .skin-grid { display: flex; flex-direction: column; gap: 6px; }
+  .skin-card {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    border-radius: 8px; cursor: pointer; background: #0f0f23;
+    border: 1px solid #1a1a3e; transition: border-color 0.2s, transform 0.1s, opacity 0.2s;
+  }
+  .skin-card:hover { border-color: #444; }
+  .skin-card:active { transform: scale(0.97); }
+  .skin-card.active { border-color: #e94560; box-shadow: 0 0 8px rgba(233,69,96,0.3); }
+  .skin-card.locked { opacity: 0.35; cursor: not-allowed; }
+  .skin-card.locked:hover { border-color: #1a1a3e; }
+  .skin-card.locked:active { transform: none; }
+  .skin-swatch {
+    width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .skin-info { flex: 1; min-width: 0; }
+  .skin-name { color: #ddd; font-size: 0.8rem; font-weight: bold; }
+  .skin-score { color: #666; font-size: 0.65rem; }
+  .skin-panel-footer { margin-top: 10px; text-align: center; }
+  .skin-panel-footer a {
+    color: #444; font-size: 0.7rem; cursor: pointer; text-decoration: none;
+    transition: color 0.2s;
+  }
+  .skin-panel-footer a:hover { color: #e94560; }
+
+  /* Skin cards during gameplay */
+  body.playing .skin-card { pointer-events: none; opacity: 0.5; cursor: default; }
+  body.playing .skin-card.active { opacity: 0.8; }
+
+  @media (max-width: 700px) {
+    .main { flex-direction: column; align-items: center; }
+    .skin-panel { width: 100%; max-width: 480px; }
+    .skin-grid { flex-direction: row; flex-wrap: wrap; }
+    .skin-card { flex: 0 0 calc(50% - 3px); }
+  }
+</style>
+</head>
+<body>
+
+<div class="main">
+  <div class="game-panel">
+    <h1>贪 吃 蛇</h1>
+    <div class="top-bar">
+      <div class="score-group">
+        <span class="badge badge-score">得分 <b id="score">0</b></span>
+        <span class="badge badge-high">最高 <b id="high">0</b></span>
+        <span class="badge badge-skin" id="skinBadge">经典绿</span>
+        <span class="diff-badge" id="diffBadge">普通</span>
+      </div>
+      <button class="sound-btn" id="soundBtn" title="音乐">🔊</button>
+    </div>
+    <div class="progress-label" id="progressLabel">下一皮肤: 烈焰红 (还需50分)</div>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="overlay-content" id="overlayContent"></div>
+      </div>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div class="tips">方向键 / <span>WASD</span> 控制 · <span>空格</span> 暂停</div>
+  </div>
+
+  <div class="skin-panel">
+    <h3>皮肤仓库</h3>
+    <div class="skin-grid" id="skinGrid"></div>
+    <div class="skin-panel-footer">
+      <a id="exportLink">导出存档</a> · <a id="importLink">导入存档</a> · <a id="resetLink">重置</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ AUDIO ENGINE ============
+const AudioEngine = (() => {
+  let ctx = null, bgmPlaying = false, bgmOn = true, bgmTimer = null, bgmStep = 0;
+
+  function ensureCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+  function playTone(freq, startFreq, duration, type = 'square', vol = 0.08, rampTo) {
+    ensureCtx(); const t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(startFreq || freq, t);
+    if (rampTo) osc.frequency.linearRampToValueAtTime(rampTo, t + duration);
+    gain.gain.setValueAtTime(vol, t); gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(gain); gain.connect(ctx.destination); osc.start(t); osc.stop(t + duration);
+  }
+  function eat() { playTone(400, 200, 0.1, 'square', 0.07, 700); }
+  function die() {
+    ensureCtx(); const t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, t);
+    osc.frequency.linearRampToValueAtTime(80, t + 0.4);
+    gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    osc.connect(gain); gain.connect(ctx.destination); osc.start(t); osc.stop(t + 0.5);
+  }
+  function unlock() {
+    ensureCtx(); const t = ctx.currentTime;
+    [523, 659, 784].forEach((f, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(f, t + i * 0.12);
+      gain.gain.setValueAtTime(0.06, t + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.2);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(t + i * 0.12); osc.stop(t + i * 0.12 + 0.25);
+    });
+  }
+  function click() { playTone(800, 800, 0.04, 'sine', 0.04); }
+
+  const melody = [262, 294, 330, 349, 392, 349, 330, 294, 262, 330, 392, 523, 392, 330, 294, 262];
+  function playBgmNote() {
+    if (!bgmOn || !bgmPlaying) return;
+    ensureCtx(); const note = melody[bgmStep % melody.length]; const t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(note, t);
+    gain.gain.setValueAtTime(0.03, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.connect(gain); gain.connect(ctx.destination); osc.start(t); osc.stop(t + 0.2);
+    if (bgmStep % 4 === 0) {
+      const bOsc = ctx.createOscillator(), bGain = ctx.createGain();
+      bOsc.type = 'sine'; bOsc.frequency.setValueAtTime(note / 2, t);
+      bGain.gain.setValueAtTime(0.05, t); bGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      bOsc.connect(bGain); bGain.connect(ctx.destination); bOsc.start(t); bOsc.stop(t + 0.4);
+    }
+    bgmStep++; bgmTimer = setTimeout(playBgmNote, 220);
+  }
+  function startBgm() { if (bgmPlaying) return; bgmPlaying = true; bgmStep = 0; playBgmNote(); }
+  function stopBgm() { bgmPlaying = false; if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; } }
+  function toggleBgm() { bgmOn = !bgmOn; if (bgmOn && !bgmPlaying) startBgm(); return bgmOn; }
+  return { eat, die, unlock, click, startBgm, stopBgm, toggleBgm, isOn: () => bgmOn };
+})();
+
+// ============ CONSTS & STATE ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const COLS = 20, ROWS = 20, CELL = 26;
+canvas.width = COLS * CELL; canvas.height = ROWS * CELL;
+
+const DIFFICULTIES = {
+  easy:   { name: '简单', speed: 180, minSpeed: 85, speedDec: 2, obstacles: 0,  color: '#4caf50' },
+  normal: { name: '普通', speed: 140, minSpeed: 50, speedDec: 3, obstacles: 0,  color: '#f39c12' },
+  hard:   { name: '困难', speed: 105, minSpeed: 35, speedDec: 4, obstacles: 6,  color: '#e94560' },
+  hell:   { name: '地狱', speed: 78,  minSpeed: 25, speedDec: 5, obstacles: 12, color: '#c084fc' },
+};
+let difficulty = 'normal';
+let obstacles = [];
+
+function generateObstacles(count) {
+  const obs = [];
+  if (count === 0) return obs;
+  const mid = Math.floor(COLS / 2);
+  const avoid = new Set();
+  // Avoid snake spawn area
+  for (let y = ROWS - 5; y < ROWS; y++)
+    for (let x = mid - 2; x <= mid + 2; x++) avoid.add(`${x},${y}`);
+  // Avoid center area
+  for (let x = mid - 2; x <= mid + 2; x++)
+    for (let y = 2; y <= 8; y++) avoid.add(`${x},${y}`);
+
+  // Build candidate list, shuffling rows for variety
+  const candidates = [];
+  for (let x = 1; x < COLS - 1; x++)
+    for (let y = 1; y < ROWS - 1; y++)
+      if (!avoid.has(`${x},${y}`)) candidates.push({ x, y });
+
+  // Fisher-Yates shuffle
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  // Pick count items, enforcing minimum distance between obstacles
+  for (const c of candidates) {
+    if (obs.length >= count) break;
+    const tooClose = obs.some(o => Math.abs(o.x - c.x) < 2 && Math.abs(o.y - c.y) < 2);
+    if (!tooClose) obs.push(c);
+  }
+  return obs;
+}
+
+let snake, food, dir, nextDir, score, high, speed, timer, frame;
+let running = false, paused = false;
+let particles = [], rainbowHue = 0;
+let unlockedSkins = new Set();
+let currentSkinId = 'classic';
+
+const SKINS = [
+  { id: 'classic', name: '经典绿',   score: 0,    desc: '初心之绿' },
+  { id: 'flame',   name: '烈焰红',   score: 50,   desc: '热情似火' },
+  { id: 'ice',     name: '冰霜蓝',   score: 100,  desc: '冷酷冰晶' },
+  { id: 'gold',    name: '黄金蟒',   score: 200,  desc: '高贵金黄' },
+  { id: 'neon',    name: '霓虹紫',   score: 350,  desc: '霓虹闪耀' },
+  { id: 'rainbow', name: '彩虹',     score: 500,  desc: '七彩斑斓' },
+  { id: 'shadow',  name: '暗影',     score: 750,  desc: '暗夜行者' },
+  { id: 'galaxy',  name: '星空',     score: 1000, desc: '星辰大海' },
+];
+
+// Load (with error handling)
+function lsGet(key, fallback) { try { const v = localStorage.getItem(key); return v !== null ? v : fallback; } catch(e) { return fallback; } }
+function lsSet(key, val) { try { localStorage.setItem(key, val); return true; } catch(e) { return false; } }
+
+high = parseInt(lsGet('snakeHighV4', '0')) || 0;
+const savedSkinId = lsGet('snakeSkinV4', 'classic');
+const savedUnlocked = JSON.parse(lsGet('snakeUnlockedV4', '["classic"]'));
+unlockedSkins = new Set(savedUnlocked);
+currentSkinId = unlockedSkins.has(savedSkinId) ? savedSkinId : 'classic';
+document.getElementById('high').textContent = high;
+document.getElementById('skinBadge').textContent = SKINS.find(s => s.id === currentSkinId).name;
+document.getElementById('diffBadge').style.background = DIFFICULTIES[difficulty].color;
+
+function isUnlocked(skinId) { return unlockedSkins.has(skinId); }
+
+function unlockSkin(skinId) {
+  if (unlockedSkins.has(skinId)) return false;
+  unlockedSkins.add(skinId);
+  lsSet('snakeUnlockedV4', JSON.stringify([...unlockedSkins]));
+  AudioEngine.unlock();
+  renderSkinPanel();
+  return true;
+}
+
+function setSkin(skinId) {
+  if (!isUnlocked(skinId) || running) return;
+  currentSkinId = skinId;
+  lsSet('snakeSkinV4', skinId);
+  document.getElementById('skinBadge').textContent = SKINS.find(s => s.id === skinId).name;
+  renderSkinPanel();
+  draw();
+}
+
+// ============ OVERLAY ============
+function renderDiffButtons(containerId) {
+  const dg = document.getElementById(containerId);
+  if (!dg) return;
+  Object.entries(DIFFICULTIES).forEach(([key, val]) => {
+    const btn = document.createElement('button');
+    btn.className = 'diff-btn' + (key === difficulty ? ' sel' : '');
+    btn.textContent = val.name; btn.dataset.diff = key;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      AudioEngine.click();
+      difficulty = key;
+      dg.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      document.getElementById('diffBadge').textContent = val.name;
+      document.getElementById('diffBadge').style.background = val.color;
+      init(); updateProgress(); draw();
+    });
+    dg.appendChild(btn);
+  });
+}
+
+function showOverlay(type) {
+  const overlay = document.getElementById('overlay');
+  const content = document.getElementById('overlayContent');
+  overlay.classList.remove('hidden');
+
+  let title = '贪 吃 蛇', btnText = '开始游戏', scoreHTML = '';
+  if (type === 'over') { title = '游戏结束'; btnText = '再来一局'; scoreHTML = `<div class="final-score">得分 <b>${score}</b></div>`; }
+  if (type === 'win')  { title = '棋盘已满!'; btnText = '再来一局'; scoreHTML = `<div class="final-score">得分 <b>${score}</b></div>`; }
+
+  content.innerHTML = `<h2>${title}</h2>${scoreHTML}
+    <div class="diff-group" id="diffGroup"></div>
+    <button id="overlayBtn">${btnText}</button>`;
+  renderDiffButtons('diffGroup');
+  document.getElementById('overlayBtn').addEventListener('click', startGame);
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function startGame() {
+  hideOverlay();
+  init();
+  running = true; paused = false;
+  document.body.classList.add('playing');
+  document.getElementById('msg').textContent = '';
+  draw();
+  clearInterval(timer);
+  timer = setInterval(loop, speed);
+  AudioEngine.startBgm();
+}
+
+// ============ GAME LOGIC ============
+function init() {
+  const mid = Math.floor(COLS / 2);
+  snake = [{ x: mid, y: ROWS - 3 }, { x: mid, y: ROWS - 2 }, { x: mid, y: ROWS - 1 }];
+  dir = { x: 0, y: -1 }; nextDir = { x: 0, y: -1 };
+  const d = DIFFICULTIES[difficulty];
+  score = 0; speed = d.speed; particles = []; frame = 0;
+  obstacles = generateObstacles(d.obstacles);
+  food = spawnFood();
+  document.getElementById('score').textContent = '0';
+  document.getElementById('diffBadge').textContent = d.name;
+  document.getElementById('diffBadge').style.background = d.color;
+  updateProgress();
+}
+
+function spawnFood() {
+  const occupied = new Set(snake.map(s => `${s.x},${s.y}`));
+  obstacles.forEach(o => occupied.add(`${o.x},${o.y}`));
+  const free = [];
+  for (let x = 0; x < COLS; x++)
+    for (let y = 0; y < ROWS; y++)
+      if (!occupied.has(`${x},${y}`)) free.push({ x, y });
+  if (free.length === 0) return null;
+  return free[Math.floor(Math.random() * free.length)];
+}
+
+function spawnParticles(x, y, color, count = 6) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+    particles.push({
+      x: x * CELL + CELL / 2, y: y * CELL + CELL / 2,
+      vx: Math.cos(angle) * (1.5 + Math.random() * 2.5),
+      vy: Math.sin(angle) * (1.5 + Math.random() * 2.5),
+      life: 1, decay: 0.025 + Math.random() * 0.04,
+      color, size: 1.5 + Math.random() * 3,
+    });
+  }
+}
+
+function step() {
+  dir = nextDir;
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return endGame('over');
+  if (snake.some(s => s.x === head.x && s.y === head.y)) return endGame('over');
+  if (obstacles.some(o => o.x === head.x && o.y === head.y)) return endGame('over');
+
+  snake.unshift(head);
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    document.getElementById('score').textContent = score;
+    floatScore();
+    AudioEngine.eat();
+
+    // Particle color per skin
+    let pColor = '#f39c12';
+    if (currentSkinId === 'rainbow') pColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
+    else if (currentSkinId === 'shadow') pColor = '#22d3ee';
+    else if (currentSkinId === 'neon') pColor = '#e879f9';
+    else if (currentSkinId === 'ice') pColor = '#bae6fd';
+    else if (currentSkinId === 'flame') pColor = '#ff6b35';
+    spawnParticles(food.x, food.y, pColor, 8);
+
+    food = spawnFood();
+    if (food == null) return endGame('win');
+    const d = DIFFICULTIES[difficulty];
+    if (speed > d.minSpeed) { clearInterval(timer); speed -= d.speedDec; timer = setInterval(loop, speed); }
+
+    for (const skin of SKINS) {
+      if (score >= skin.score && !isUnlocked(skin.id)) {
+        unlockSkin(skin.id);
+        document.getElementById('msg').textContent = '解锁新皮肤: ' + skin.name + '!';
+        setTimeout(() => { if (document.getElementById('msg').textContent.includes('解锁')) document.getElementById('msg').textContent = ''; }, 2000);
+      }
+    }
+    updateProgress();
+    if (score > high) {
+      high = score;
+      lsSet('snakeHighV4', high);
+      document.getElementById('high').textContent = high;
+    }
+  } else {
+    snake.pop();
+  }
+  updateParticles();
+  draw();
+}
+
+function endGame(type) {
+  running = false;
+  clearInterval(timer);
+  document.body.classList.remove('playing');
+  AudioEngine.stopBgm();
+  AudioEngine.die();
+  if (score > high) {
+    high = score;
+    lsSet('snakeHighV4', high);
+    document.getElementById('high').textContent = high;
+  }
+  setTimeout(() => showOverlay(type), 400);
+}
+
+function loop() {
+  if (!running || paused) return;
+  frame++;
+  if (currentSkinId === 'rainbow') rainbowHue = (rainbowHue + 1) % 360;
+  step();
+  if (currentSkinId === 'rainbow' && running) draw();
+}
+
+setInterval(() => {
+  if ((!running || paused) && currentSkinId === 'rainbow') {
+    rainbowHue = (rainbowHue + 0.5) % 360;
+    if (snake) draw();
+  }
+}, 80);
+
+function togglePause() {
+  if (!running) return;
+  paused = !paused;
+  document.getElementById('msg').textContent = paused ? '已暂停' : '';
+}
+
+function floatScore() {
+  const wrap = document.getElementById('canvasWrap');
+  const el = document.createElement('div');
+  el.className = 'float-text'; el.textContent = '+10';
+  el.style.left = (food.x * CELL + CELL / 2) + 'px';
+  el.style.top = (food.y * CELL + CELL / 2) + 'px';
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 600);
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function updateProgress() {
+  let nextSkin = null;
+  for (const skin of SKINS) { if (score < skin.score) { nextSkin = skin; break; } }
+  if (nextSkin) {
+    const need = nextSkin.score - score;
+    const idx = SKINS.indexOf(nextSkin);
+    const prev = idx > 0 ? SKINS[idx - 1] : { score: 0 };
+    const total = nextSkin.score - prev.score;
+    const pct = total > 0 ? ((score - prev.score) / total * 100) : 100;
+    document.getElementById('progressLabel').textContent = `下一皮肤: ${nextSkin.name} (还需${need}分)`;
+    document.getElementById('progressBar').style.width = pct + '%';
+  } else {
+    document.getElementById('progressLabel').textContent = '全部皮肤已解锁!';
+    document.getElementById('progressBar').style.width = '100%';
+  }
+}
+
+// ============ DRAWING ============
+function drawSegment(seg, i) {
+  const { x, y } = seg;
+  const cx = x * CELL + CELL / 2, cy = y * CELL + CELL / 2;
+  const pad = 2, size = CELL - pad * 2;
+  const isHead = i === 0;
+
+  switch (currentSkinId) {
+    // ---- CLASSIC ----
+    case 'classic': {
+      const grad = ctx.createLinearGradient(x * CELL, y * CELL, x * CELL + CELL, y * CELL + CELL);
+      const l = 35 + (1 - i / (snake.length + 8)) * 28;
+      grad.addColorStop(0, `hsl(150, 65%, ${l}%)`);
+      grad.addColorStop(1, `hsl(155, 70%, ${l - 10}%)`);
+      ctx.fillStyle = grad;
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 6);
+      // Scale lines
+      if (i > 0 && i % 2 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x * CELL + pad + 4, y * CELL + pad + 3, size - 8, 2);
+      }
+      if (isHead) drawEyes(x, y, 'circle');
+      break;
+    }
+    // ---- FLAME ----
+    case 'flame': {
+      const ratio = 1 - i / (snake.length + 10);
+      const r = 220 + ratio * 40, g = Math.floor(60 + ratio * 160), b = Math.floor(10 + ratio * 40);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.beginPath();
+      const py = y * CELL + pad; const ph = size;
+      ctx.moveTo(x * CELL + pad, py + ph);
+      ctx.lineTo(x * CELL + pad, py + ph * 0.3);
+      for (let wx = 0; wx <= size; wx += 3) {
+        const wy = ph * 0.3 + Math.sin((wx / size) * Math.PI * 2 + frame * 0.2) * ph * 0.25;
+        ctx.lineTo(x * CELL + pad + wx, py + wy);
+      }
+      ctx.lineTo(x * CELL + CELL - pad, py + ph);
+      ctx.closePath(); ctx.fill();
+      if (isHead) {
+        // Flame crown
+        ctx.fillStyle = '#ffcc00';
+        for (let fi = 0; fi < 3; fi++) {
+          ctx.beginPath();
+          ctx.arc(cx - 4 + fi * 4, cy - CELL / 2 - 1, 2.5 + Math.sin(frame * 0.3 + fi) * 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        drawEyes(x, y, 'slit');
+      }
+      break;
+    }
+    // ---- ICE ----
+    case 'ice': {
+      const l = 60 + (1 - i / (snake.length + 8)) * 25;
+      ctx.fillStyle = `hsl(200, 70%, ${l}%)`;
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      const dx = x * CELL + CELL / 2, dy = y * CELL + CELL / 2, hs = size / 2;
+      ctx.moveTo(dx, y * CELL + pad);
+      ctx.lineTo(x * CELL + CELL - pad - 1, dy);
+      ctx.lineTo(dx, y * CELL + CELL - pad);
+      ctx.lineTo(x * CELL + pad + 1, dy);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // Facet highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath();
+      ctx.moveTo(dx, y * CELL + pad); ctx.lineTo(dx, dy); ctx.lineTo(x * CELL + pad + 1, dy);
+      ctx.closePath(); ctx.fill();
+      if (isHead) {
+        // Ice spikes on head
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath(); ctx.arc(dx - 2, y * CELL + 2, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 2, y * CELL + 2, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0c4a6e';
+        ctx.beginPath(); ctx.arc(dx - 2 + dir.x * 1, y * CELL + 2 + dir.y * 1, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 2 + dir.x * 1, y * CELL + 2 + dir.y * 1, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    // ---- GOLD ----
+    case 'gold': {
+      const l = 45 + (1 - i / (snake.length + 8)) * 22;
+      const grad = ctx.createLinearGradient(x * CELL, y * CELL, x * CELL + CELL, y * CELL + CELL);
+      grad.addColorStop(0, `hsl(42, 80%, ${l + 10}%)`);
+      grad.addColorStop(0.5, `hsl(48, 90%, ${l}%)`);
+      grad.addColorStop(1, `hsl(38, 70%, ${l - 5}%)`);
+      ctx.fillStyle = grad;
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 5);
+      // Diamond scale
+      if (i > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 6, cy); ctx.lineTo(cx, cy + 6); ctx.lineTo(cx - 6, cy);
+        ctx.closePath(); ctx.fill();
+      }
+      if (isHead) {
+        // Cobra hood mark
+        ctx.fillStyle = 'rgba(180,120,20,0.4)';
+        ctx.beginPath(); ctx.arc(cx, cy + 3, 7, 0, Math.PI); ctx.fill();
+        drawEyes(x, y, 'slit');
+      }
+      break;
+    }
+    // ---- NEON ----
+    case 'neon': {
+      // Outer glow
+      ctx.shadowColor = '#e879f9'; ctx.shadowBlur = isHead ? 14 : 8;
+      ctx.fillStyle = '#4a0e5c';
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 7);
+      ctx.shadowBlur = 0;
+      // Inner bright core
+      ctx.fillStyle = 'rgba(232,121,249,0.6)';
+      roundRect(x * CELL + pad + 3, y * CELL + pad + 3, size - 6, size - 6, 5);
+      // White center line
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      roundRect(x * CELL + pad + 5, y * CELL + pad + 5, size - 10, size - 10, 3);
+      if (isHead) {
+        // Light crown
+        ctx.fillStyle = '#fff';
+        for (let li = 0; li < 5; li++) {
+          const la = (li / 5) * Math.PI - Math.PI * 0.5 + Math.PI * 0.5;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(la) * 8, cy + Math.sin(la) * 8, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        drawEyes(x, y, 'circle');
+      }
+      break;
+    }
+    // ---- RAINBOW ----
+    case 'rainbow': {
+      const hue = (rainbowHue + i * 18) % 360;
+      ctx.fillStyle = `hsl(${hue}, 80%, ${45 + (1 - i / (snake.length + 10)) * 15}%)`;
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 6);
+      // Candy highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      roundRect(x * CELL + pad + 3, y * CELL + pad + 1, size - 8, size * 0.45, 3);
+      if (isHead) drawEyes(x, y, 'circle');
+      break;
+    }
+    // ---- SHADOW ----
+    case 'shadow': {
+      const l = 10 + (1 - i / (snake.length + 8)) * 18;
+      ctx.fillStyle = `hsl(140, 20%, ${l}%)`;
+      ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = isHead ? 10 : 5;
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 4);
+      ctx.shadowBlur = 0;
+      // Edge highlight
+      ctx.strokeStyle = 'rgba(34,211,238,0.5)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 4);
+      ctx.stroke();
+      if (isHead) {
+        ctx.fillStyle = '#22d3ee';
+        ctx.beginPath(); ctx.arc(cx - 4, cy - 3, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 4, cy - 3, 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    // ---- GALAXY ----
+    case 'galaxy': {
+      const grad = ctx.createLinearGradient(x * CELL, y * CELL, x * CELL + CELL, y * CELL + CELL);
+      const l = 25 + (1 - i / (snake.length + 10)) * 20;
+      grad.addColorStop(0, `hsl(250, 55%, ${l}%)`);
+      grad.addColorStop(1, `hsl(270, 50%, ${l - 8}%)`);
+      ctx.fillStyle = grad;
+      roundRect(x * CELL + pad, y * CELL + pad, size, size, 5);
+      // Star dots (deterministic per segment)
+      const seed = x * 100 + y;
+      for (let si = 0; si < 3; si++) {
+        const sx = x * CELL + pad + 4 + ((seed * (si + 1) * 7) % (size - 8));
+        const sy = y * CELL + pad + 4 + ((seed * (si + 1) * 13) % (size - 8));
+        ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.sin(frame * 0.05 + si) * 0.2})`;
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+      }
+      if (isHead) {
+        // Comet tail
+        ctx.fillStyle = 'rgba(200,180,255,0.3)';
+        ctx.beginPath();
+        const tailX = cx - dir.x * CELL * 0.7, tailY = cy - dir.y * CELL * 0.7;
+        ctx.moveTo(cx, cy); ctx.lineTo(tailX - 3, tailY + 2); ctx.lineTo(tailX, tailY); ctx.lineTo(tailX - 3, tailY - 2);
+        ctx.closePath(); ctx.fill();
+        drawEyes(x, y, 'circle');
+      }
+      break;
+    }
+  }
+}
+
+function drawEyes(x, y, style) {
+  const cx = x * CELL + CELL / 2, cy = y * CELL + CELL / 2;
+  ctx.fillStyle = '#fff';
+  let ex1 = cx - 4, ey1 = cy - 3, ex2 = cx + 4, ey2 = cy - 3;
+  if (dir.y === 1) { ey1 += 2; ey2 += 2; } else if (dir.y === -1) { ey1 -= 2; ey2 -= 2; }
+  if (dir.x === 1) { ex1 += 2; ex2 += 2; } else if (dir.x === -1) { ex1 -= 2; ex2 -= 2; }
+  const eyeR = style === 'slit' ? 2.5 : 3;
+  ctx.beginPath(); ctx.arc(ex1, ey1, eyeR, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ex2, ey2, eyeR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(ex1 + dir.x, ey1 + dir.y, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ex2 + dir.x, ey2 + dir.y, 1.3, 0, Math.PI * 2); ctx.fill();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawFood() {
+  const fx = food.x * CELL + CELL / 2, fy = food.y * CELL + CELL / 2;
+  const R = CELL / 2 - 3;
+  ctx.save();
+
+  switch (currentSkinId) {
+    // ---- CLASSIC: Apple ----
+    case 'classic':
+      ctx.fillStyle = '#e94560';
+      ctx.beginPath(); ctx.arc(fx + 1, fy + 1, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c23152';
+      ctx.beginPath(); ctx.arc(fx, fy, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(fx - 3, fy - 3, R * 0.3, 0, Math.PI * 2); ctx.fill();
+      // Stem
+      ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(fx, fy - R + 2); ctx.lineTo(fx + 3, fy - R - 3); ctx.stroke();
+      // Leaf
+      ctx.fillStyle = '#4caf50';
+      ctx.beginPath(); ctx.ellipse(fx + 5, fy - R, 4, 2.5, 0.3, 0, Math.PI * 2); ctx.fill();
+      break;
+
+    // ---- FLAME: Fire orb ----
+    case 'flame':
+      ctx.fillStyle = '#ff4500';
+      ctx.beginPath(); ctx.arc(fx, fy, R, 0, Math.PI * 2); ctx.fill();
+      // Inner flame shapes
+      ctx.fillStyle = '#ff8c00';
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.65, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffcc00';
+      for (let fi = 0; fi < 3; fi++) {
+        const fa = frame * 0.08 + fi * Math.PI * 0.66;
+        ctx.beginPath();
+        ctx.ellipse(fx + Math.cos(fa) * 3, fy + Math.sin(fa) * 3, R * 0.25, R * 0.4, fa, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+
+    // ---- ICE: Snowflake ----
+    case 'ice':
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.35, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#bae6fd'; ctx.lineWidth = 1.5;
+      for (let si = 0; si < 6; si++) {
+        const sa = si * Math.PI / 3;
+        ctx.beginPath();
+        ctx.moveTo(fx + Math.cos(sa) * 2, fy + Math.sin(sa) * 2);
+        ctx.lineTo(fx + Math.cos(sa) * R, fy + Math.sin(sa) * R);
+        ctx.stroke();
+        // Branch tips
+        const bx = fx + Math.cos(sa) * R * 0.65, by = fy + Math.sin(sa) * R * 0.65;
+        ctx.beginPath();
+        ctx.moveTo(bx + Math.cos(sa + 0.4) * 3, by + Math.sin(sa + 0.4) * 3);
+        ctx.lineTo(bx, by);
+        ctx.lineTo(bx + Math.cos(sa - 0.4) * 3, by + Math.sin(sa - 0.4) * 3);
+        ctx.stroke();
+      }
+      break;
+
+    // ---- GOLD: Coin ----
+    case 'gold':
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.arc(fx, fy, R, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#d97706'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.7, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#d97706'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('¥', fx, fy + 1);
+      break;
+
+    // ---- NEON: Energy orb ----
+    case 'neon':
+      ctx.shadowColor = '#e879f9'; ctx.shadowBlur = 16;
+      ctx.fillStyle = '#d946ef';
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(232,121,249,0.6)';
+      ctx.lineWidth = 2 + Math.sin(frame * 0.08) * 1;
+      ctx.beginPath(); ctx.arc(fx, fy, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.arc(fx - 1, fy - 1, R * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+
+    // ---- RAINBOW: Star ----
+    case 'rainbow':
+      ctx.fillStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 6;
+      drawStar(fx, fy, R, R * 0.45, 5);
+      ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      drawStar(fx - 1, fy - 1, R * 0.5, R * 0.2, 5);
+      ctx.fill();
+      break;
+
+    // ---- SHADOW: Soul gem ----
+    case 'shadow':
+      ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 14;
+      ctx.fillStyle = '#06b6d4';
+      ctx.beginPath();
+      const hs2 = R * 0.85;
+      ctx.moveTo(fx, fy - hs2); ctx.lineTo(fx + hs2, fy); ctx.lineTo(fx, fy + hs2); ctx.lineTo(fx - hs2, fy);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.moveTo(fx, fy - hs2 * 0.5); ctx.lineTo(fx + hs2 * 0.5, fy); ctx.lineTo(fx, fy + hs2 * 0.5); ctx.lineTo(fx - hs2 * 0.5, fy);
+      ctx.closePath(); ctx.fill();
+      break;
+
+    // ---- GALAXY: Planet with ring ----
+    case 'galaxy':
+      ctx.fillStyle = '#7c3aed';
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath(); ctx.arc(fx - 2, fy - 2, R * 0.25, 0, Math.PI * 2); ctx.fill();
+      // Ring
+      ctx.strokeStyle = 'rgba(250,204,21,0.7)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(fx, fy, R + 1, R * 0.35, -0.3, 0, Math.PI * 2); ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+function drawStar(cx, cy, outerR, innerR, points) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (i * Math.PI) / points - Math.PI / 2;
+    const sx = cx + Math.cos(angle) * r, sy = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+  }
+  ctx.closePath();
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  const g = ctx;
+  g.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  let gridColor = 'rgba(255,255,255,0.03)';
+  if (currentSkinId === 'flame') gridColor = 'rgba(255,100,30,0.05)';
+  else if (currentSkinId === 'ice') gridColor = 'rgba(100,180,255,0.05)';
+  else if (currentSkinId === 'shadow') gridColor = 'rgba(34,211,238,0.06)';
+  else if (currentSkinId === 'neon') gridColor = 'rgba(220,80,255,0.05)';
+  else if (currentSkinId === 'galaxy') gridColor = 'rgba(150,120,255,0.05)';
+  else if (currentSkinId === 'gold') gridColor = 'rgba(255,200,50,0.05)';
+  g.strokeStyle = gridColor; g.lineWidth = 0.5;
+  for (let i = 0; i <= COLS; i++) { g.beginPath(); g.moveTo(i * CELL, 0); g.lineTo(i * CELL, canvas.height); g.stroke(); }
+  for (let i = 0; i <= ROWS; i++) { g.beginPath(); g.moveTo(0, i * CELL); g.lineTo(canvas.width, i * CELL); g.stroke(); }
+
+  drawParticles();
+  // Obstacles
+  obstacles.forEach(o => {
+    ctx.fillStyle = 'rgba(180,40,40,0.5)';
+    ctx.fillRect(o.x * CELL + 2, o.y * CELL + 2, CELL - 4, CELL - 4);
+    ctx.strokeStyle = 'rgba(255,60,60,0.6)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(o.x * CELL + 2, o.y * CELL + 2, CELL - 4, CELL - 4);
+    // X mark
+    ctx.strokeStyle = 'rgba(255,100,100,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(o.x * CELL + 5, o.y * CELL + 5);
+    ctx.lineTo(o.x * CELL + CELL - 5, o.y * CELL + CELL - 5);
+    ctx.moveTo(o.x * CELL + CELL - 5, o.y * CELL + 5);
+    ctx.lineTo(o.x * CELL + 5, o.y * CELL + CELL - 5);
+    ctx.stroke();
+  });
+  drawFood();
+  snake.forEach((seg, i) => drawSegment(seg, i));
+}
+
+// ============ SKIN PANEL ============
+function renderSkinPanel() {
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML = '';
+  SKINS.forEach(skin => {
+    const card = document.createElement('div');
+    card.className = 'skin-card';
+    if (skin.id === currentSkinId) card.classList.add('active');
+    if (!isUnlocked(skin.id)) card.classList.add('locked');
+
+    const sw = document.createElement('div');
+    sw.className = 'skin-swatch';
+    // Previews
+    switch (skin.id) {
+      case 'classic': sw.style.background = 'linear-gradient(135deg, #2d8a4e, #1a5c30)'; break;
+      case 'flame':   sw.style.background = 'linear-gradient(135deg, #ff4500, #8b0000)'; break;
+      case 'ice':     sw.style.background = 'linear-gradient(135deg, #38bdf8, #1e40af)'; break;
+      case 'gold':    sw.style.background = 'linear-gradient(135deg, #fbbf24, #92400e)'; break;
+      case 'neon':    sw.style.background = 'linear-gradient(135deg, #d946ef, #4a0e5c)'; break;
+      case 'rainbow': sw.style.background = 'linear-gradient(90deg, red, yellow, lime, cyan, blue, magenta, red)'; break;
+      case 'shadow':  sw.style.background = '#0f1f14'; sw.style.boxShadow = 'inset 0 0 8px #22d3ee'; break;
+      case 'galaxy':  sw.style.background = 'linear-gradient(135deg, #1e1b4b, #312e81)'; sw.style.boxShadow = 'inset 0 0 3px #fff'; break;
+    }
+
+    const info = document.createElement('div');
+    info.className = 'skin-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'skin-name'; nameEl.textContent = skin.name;
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'skin-score';
+    scoreEl.textContent = isUnlocked(skin.id) ? skin.desc : skin.score + '分解锁';
+    info.appendChild(nameEl); info.appendChild(scoreEl);
+    card.appendChild(sw); card.appendChild(info);
+
+    card.addEventListener('click', () => {
+      AudioEngine.click();
+      if (!isUnlocked(skin.id) || running) return;
+      setSkin(skin.id);
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+// ============ EVENTS ============
+let soundOn = true;
+document.getElementById('soundBtn').addEventListener('click', () => {
+  soundOn = AudioEngine.toggleBgm();
+  document.getElementById('soundBtn').textContent = soundOn ? '🔊' : '🔇';
+  if (!soundOn) AudioEngine.click();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePause(); return; }
+  if (!running || paused) return;
+  const key = e.key.toLowerCase();
+  if ((key === 'arrowup' || key === 'w') && dir.y === 0) nextDir = { x: 0, y: -1 };
+  if ((key === 'arrowdown' || key === 's') && dir.y === 0) nextDir = { x: 0, y: 1 };
+  if ((key === 'arrowleft' || key === 'a') && dir.x === 0) nextDir = { x: -1, y: 0 };
+  if ((key === 'arrowright' || key === 'd') && dir.x === 0) nextDir = { x: 1, y: 0 };
+});
+
+document.getElementById('resetLink').addEventListener('click', () => {
+  if (!confirm('确定重置所有皮肤进度吗？已解锁的皮肤将丢失。')) return;
+  AudioEngine.click();
+  unlockedSkins = new Set(['classic']);
+  lsSet('snakeUnlockedV4', JSON.stringify(['classic']));
+  currentSkinId = 'classic';
+  lsSet('snakeSkinV4', 'classic');
+  document.getElementById('skinBadge').textContent = '经典绿';
+  renderSkinPanel();
+  updateProgress();
+  draw();
+  document.getElementById('msg').textContent = '进度已重置';
+  setTimeout(() => { document.getElementById('msg').textContent = ''; }, 1500);
+});
+
+// ============ EXPORT / IMPORT ============
+document.getElementById('exportLink').addEventListener('click', () => {
+  AudioEngine.click();
+  const data = {
+    high: high,
+    skin: currentSkinId,
+    unlocked: [...unlockedSkins],
+    v: 4,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'snake-save.json'; a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('msg').textContent = '存档已导出';
+  setTimeout(() => { if (document.getElementById('msg').textContent === '存档已导出') document.getElementById('msg').textContent = ''; }, 1500);
+});
+
+document.getElementById('importLink').addEventListener('click', () => {
+  AudioEngine.click();
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data.unlocked || !Array.isArray(data.unlocked)) throw new Error('格式错误');
+        high = data.high || 0;
+        unlockedSkins = new Set(data.unlocked);
+        currentSkinId = unlockedSkins.has(data.skin) ? data.skin : 'classic';
+        lsSet('snakeHighV4', high);
+        lsSet('snakeUnlockedV4', JSON.stringify([...unlockedSkins]));
+        lsSet('snakeSkinV4', currentSkinId);
+        document.getElementById('high').textContent = high;
+        document.getElementById('skinBadge').textContent = SKINS.find(s => s.id === currentSkinId).name;
+        renderSkinPanel();
+        init(); updateProgress(); draw();
+        document.getElementById('msg').textContent = '存档已导入!';
+        setTimeout(() => { if (document.getElementById('msg').textContent === '存档已导入!') document.getElementById('msg').textContent = ''; }, 2000);
+      } catch(e) {
+        alert('存档文件格式不正确: ' + e.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+});
+
+// ============ INIT ============
+renderSkinPanel();
+init();
+updateProgress();
+draw();
+showOverlay('start');
+</script>
+</body>
+</html>
