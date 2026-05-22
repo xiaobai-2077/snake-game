@@ -251,10 +251,10 @@ const SKINS = [
 ];
 
 const DIFFICULTIES = {
-  easy:   { name: '简单', speed: 2.2, turnRate: 0.13, obstacles: 0,  color: '#4caf50' },
-  normal: { name: '普通', speed: 3.2, turnRate: 0.12, obstacles: 0,  color: '#f39c12' },
-  hard:   { name: '困难', speed: 4.0, turnRate: 0.10, obstacles: 4,  color: '#e94560' },
-  hell:   { name: '地狱', speed: 5.0, turnRate: 0.09, obstacles: 8,  color: '#c084fc' },
+  easy:   { name: '简单', speedGrowth: 0.03, maxSpeed: 6,  turnRate: 0.13, obstacles: 0,  color: '#4caf50' },
+  normal: { name: '普通', speedGrowth: 0.06, maxSpeed: 9,  turnRate: 0.12, obstacles: 0,  color: '#f39c12' },
+  hard:   { name: '困难', speedGrowth: 0.10, maxSpeed: 13, turnRate: 0.10, obstacles: 4,  color: '#e94560' },
+  hell:   { name: '地狱', speedGrowth: 0.15, maxSpeed: 18, turnRate: 0.09, obstacles: 8,  color: '#c084fc' },
 };
 let difficulty = 'normal';
 let obstacles = [];
@@ -406,6 +406,7 @@ function spawnParticles(x, y, color) {
 
 function step() {
   const d = DIFFICULTIES[difficulty];
+  const curSpeed = Math.min(2.2 + foodEaten * d.speedGrowth, d.maxSpeed);
   // Smooth turn
   let da = targetAngle - angle;
   while (da > Math.PI) da -= Math.PI * 2;
@@ -414,7 +415,7 @@ function step() {
   angle += da;
 
   const head = snake[0];
-  const newHead = { x: head.x + Math.cos(angle) * d.speed, y: head.y + Math.sin(angle) * d.speed };
+  const newHead = { x: head.x + Math.cos(angle) * curSpeed, y: head.y + Math.sin(angle) * curSpeed };
 
   // Boundary
   if (newHead.x < HEAD_R || newHead.x > W - HEAD_R || newHead.y < HEAD_R || newHead.y > H - HEAD_R) return endGame('over');
