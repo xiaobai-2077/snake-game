@@ -105,6 +105,41 @@
   body.playing .skin-card { pointer-events: none; opacity: 0.5; cursor: default; }
   body.playing .skin-card.active { opacity: 0.8; }
 
+  /* Settings */
+  button.settings-btn {
+    width: 32px; height: 32px; padding: 0; border-radius: 50%;
+    font-size: 0.85rem; line-height: 32px; text-align: center;
+    background: #1a1a3e; border: none; color: #fff; cursor: pointer; flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  button.settings-btn:hover { background: #2a2a5e; }
+  .settings-panel {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #151530; border: 1px solid #333; border-radius: 14px;
+    padding: 20px 24px; z-index: 100; min-width: 260px; display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .settings-panel.show { display: block; }
+  .settings-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99; display: none;
+  }
+  .settings-backdrop.show { display: block; }
+  .settings-panel h3 { color: #e94560; text-align: center; margin-bottom: 14px; letter-spacing: 3px; font-size: 1rem; }
+  .setting-row { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .setting-row label { color: #aaa; font-size: 0.78rem; white-space: nowrap; }
+  .setting-row input[type=range] { flex: 1; accent-color: #e94560; }
+  .setting-row select {
+    background: #1a1a3e; color: #ddd; border: 1px solid #333; border-radius: 6px;
+    padding: 4px 8px; font-size: 0.78rem; font-family: inherit; cursor: pointer;
+  }
+  .setting-val { color: #e94560; font-size: 0.7rem; min-width: 28px; text-align: right; }
+  .settings-panel button {
+    display: block; margin: 14px auto 0; padding: 6px 24px;
+    background: #e94560; color: #fff; border: none; border-radius: 14px;
+    font-size: 0.85rem; cursor: pointer; font-family: inherit;
+  }
+  .settings-panel button:hover { background: #c23152; }
+
   @media (max-width: 700px) {
     body { align-items: flex-start; padding-top: 2px; background: #080818; overflow: hidden; }
     .main { flex-direction: column; align-items: center; gap: 4px; padding: 4px; }
@@ -149,6 +184,7 @@
         <span class="diff-badge" id="diffBadge">普通</span>
       </div>
       <button class="sound-btn" id="soundBtn" title="音乐">🔊</button>
+      <button class="settings-btn" id="settingsBtn" title="设置">⚙</button>
     </div>
     <div class="progress-label" id="progressLabel">下一皮肤: 烈焰红 (还需50分)</div>
     <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
@@ -169,6 +205,44 @@
       <a id="exportLink">导出存档</a> · <a id="importLink">导入存档</a> · <a id="resetLink">重置</a>
     </div>
   </div>
+</div>
+
+<div class="settings-backdrop" id="settingsBackdrop"></div>
+<div class="settings-panel" id="settingsPanel">
+  <h3>设 置</h3>
+  <div class="setting-row">
+    <label>控制模式</label>
+    <select id="setMode">
+      <option value="direct">跟随光标</option>
+      <option value="joystick">虚拟摇杆</option>
+    </select>
+  </div>
+  <div class="setting-row">
+    <label>光标大小</label>
+    <input type="range" id="setCursorSize" min="0.5" max="2" step="0.1" value="1">
+    <span class="setting-val" id="valCursorSize">1x</span>
+  </div>
+  <div class="setting-row">
+    <label>光标透明度</label>
+    <input type="range" id="setCursorAlpha" min="0.2" max="1" step="0.05" value="0.5">
+    <span class="setting-val" id="valCursorAlpha">50%</span>
+  </div>
+  <div class="setting-row">
+    <label>光标灵敏度</label>
+    <input type="range" id="setCursorSens" min="0.5" max="2" step="0.1" value="1">
+    <span class="setting-val" id="valCursorSens">1x</span>
+  </div>
+  <div class="setting-row">
+    <label>摇杆大小</label>
+    <input type="range" id="setJoySize" min="0.5" max="2" step="0.1" value="1">
+    <span class="setting-val" id="valJoySize">1x</span>
+  </div>
+  <div class="setting-row">
+    <label>摇杆透明度</label>
+    <input type="range" id="setJoyAlpha" min="0.1" max="0.7" step="0.05" value="0.35">
+    <span class="setting-val" id="valJoyAlpha">35%</span>
+  </div>
+  <button id="closeSettings">关闭</button>
 </div>
 
 <script>
@@ -268,10 +342,42 @@ let mouseX = -100, mouseY = -100; // offscreen until mouse enters canvas
 let mouseOnCanvas = false;
 let animId = null;
 let isTouchDevice = false;
-// Mobile joystick state (drawn on canvas)
+// Joystick state (drawn on canvas)
 let jsActive = false, jsX = 0, jsY = 0, jsDX = 0, jsDY = 0;
-// Double-tap detection
 let lastTapTime = 0;
+
+// Settings
+let settings = {
+  mode: 'direct',       // 'direct' or 'joystick'
+  cursorSize: 1,        // 0.5 - 2
+  cursorAlpha: 0.5,     // 0.2 - 1
+  cursorSens: 1,        // 0.5 - 2
+  joySize: 1,           // 0.5 - 2
+  joyAlpha: 0.35,       // 0.1 - 0.7
+};
+(function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('snakeSettingsV1'));
+    if (s) Object.assign(settings, s);
+  } catch(e) {}
+  document.getElementById('setMode').value = settings.mode;
+  document.getElementById('setCursorSize').value = settings.cursorSize;
+  document.getElementById('setCursorAlpha').value = settings.cursorAlpha;
+  document.getElementById('setCursorSens').value = settings.cursorSens;
+  document.getElementById('setJoySize').value = settings.joySize;
+  document.getElementById('setJoyAlpha').value = settings.joyAlpha;
+  updateSettingLabels();
+})();
+function saveSettings() {
+  try { localStorage.setItem('snakeSettingsV1', JSON.stringify(settings)); } catch(e) {}
+}
+function updateSettingLabels() {
+  document.getElementById('valCursorSize').textContent = settings.cursorSize.toFixed(1) + 'x';
+  document.getElementById('valCursorAlpha').textContent = Math.round(settings.cursorAlpha * 100) + '%';
+  document.getElementById('valCursorSens').textContent = settings.cursorSens.toFixed(1) + 'x';
+  document.getElementById('valJoySize').textContent = settings.joySize.toFixed(1) + 'x';
+  document.getElementById('valJoyAlpha').textContent = Math.round(settings.joyAlpha * 100) + '%';
+}
 
 function generateObstacles(count) {
   const obs = [];
@@ -411,7 +517,7 @@ function step() {
   let da = targetAngle - angle;
   while (da > Math.PI) da -= Math.PI * 2;
   while (da < -Math.PI) da += Math.PI * 2;
-  da = Math.max(-d.turnRate, Math.min(d.turnRate, da));
+  da = Math.max(-d.turnRate * settings.cursorSens, Math.min(d.turnRate * settings.cursorSens, da));
   angle += da;
 
   const head = snake[0];
@@ -618,46 +724,42 @@ function draw() {
   });
   ctx.globalAlpha = 1;
 
-  // Custom cursor (desktop only)
-  if (!isTouchDevice && mouseOnCanvas) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(mouseX, mouseY, 8, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = 'rgba(233,69,96,0.7)';
-    ctx.beginPath(); ctx.arc(mouseX, mouseY, 2.5, 0, Math.PI * 2); ctx.fill();
-    // Crosshair lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.7;
-    const cl = 14;
-    ctx.beginPath(); ctx.moveTo(mouseX - cl, mouseY); ctx.lineTo(mouseX - 5, mouseY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(mouseX + 5, mouseY); ctx.lineTo(mouseX + cl, mouseY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(mouseX, mouseY - cl); ctx.lineTo(mouseX, mouseY - 5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(mouseX, mouseY + 5); ctx.lineTo(mouseX, mouseY + cl); ctx.stroke();
+  // Custom cursor
+  if (mouseOnCanvas) {
+    const ca = settings.cursorAlpha;
+    const cs = settings.cursorSize;
+    ctx.strokeStyle = `rgba(255,255,255,${ca})`;
+    ctx.lineWidth = 1.5 * cs;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 8 * cs, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(233,69,96,${ca + 0.2})`;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 2.5 * cs, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${ca * 0.6})`; ctx.lineWidth = 0.7 * cs;
+    const cl = 14 * cs;
+    ctx.beginPath(); ctx.moveTo(mouseX - cl, mouseY); ctx.lineTo(mouseX - 5 * cs, mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX + 5 * cs, mouseY); ctx.lineTo(mouseX + cl, mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX, mouseY - cl); ctx.lineTo(mouseX, mouseY - 5 * cs); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX, mouseY + 5 * cs); ctx.lineTo(mouseX, mouseY + cl); ctx.stroke();
   }
 
-  // Mobile joystick (drawn on canvas, semi-transparent)
-  if (isTouchDevice && jsActive) {
-    const maxR = 40;
+  // Joystick overlay on canvas
+  if (jsActive) {
+    const ja = settings.joyAlpha;
+    const js = settings.joySize;
+    const maxR = 40 * js, knobR = 16 * js;
     const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
-    const clampDist = Math.min(dist, maxR - 14);
+    const clampDist = Math.min(dist, maxR - knobR * 0.5);
     const nx = dist > 0 ? (jsDX / dist) * clampDist : 0;
     const ny = dist > 0 ? (jsDY / dist) * clampDist : 0;
 
-    ctx.globalAlpha = 0.35;
-    // Base ring
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 2;
+    ctx.globalAlpha = ja;
+    ctx.strokeStyle = `rgba(255,255,255,0.5)`; ctx.lineWidth = 2 * js;
     ctx.beginPath(); ctx.arc(jsX, jsY, maxR, 0, Math.PI * 2); ctx.stroke();
-    // Knob
     const kx = jsX + nx, ky = jsY + ny;
-    ctx.fillStyle = 'rgba(233,69,96,0.5)';
-    ctx.beginPath(); ctx.arc(kx, ky, 16, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(233,69,96,0.6)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(kx, ky, 16, 0, Math.PI * 2); ctx.stroke();
-    // Direction indicator
-    if (dist > 8) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 2;
+    ctx.fillStyle = `rgba(233,69,96,0.5)`; ctx.beginPath(); ctx.arc(kx, ky, knobR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(233,69,96,0.6)`; ctx.lineWidth = 1.5 * js;
+    ctx.beginPath(); ctx.arc(kx, ky, knobR, 0, Math.PI * 2); ctx.stroke();
+    if (dist > 8 * js) {
+      ctx.strokeStyle = `rgba(255,255,255,0.6)`; ctx.lineWidth = 2 * js;
       ctx.beginPath(); ctx.moveTo(jsX, jsY); ctx.lineTo(kx, ky); ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -784,14 +886,31 @@ function canvasPos(e) {
 canvas.addEventListener('mousemove', e => {
   const p = canvasPos(e);
   mouseX = p.x; mouseY = p.y; mouseOnCanvas = true;
+  if (settings.mode === 'joystick') return; // joystick mode: cursor display only
   if (running && !paused) {
     targetAngle = Math.atan2(mouseY - snake[0].y, mouseX - snake[0].x);
   }
 });
 canvas.addEventListener('mouseleave', () => { mouseOnCanvas = false; });
 canvas.addEventListener('mouseenter', () => { mouseOnCanvas = true; });
-// Double-click to pause on desktop
 canvas.addEventListener('dblclick', e => { e.preventDefault(); togglePause(); });
+
+// Desktop joystick mode (mouse click)
+canvas.addEventListener('mousedown', e => {
+  if (settings.mode !== 'joystick') return;
+  const p = canvasPos(e);
+  jsActive = true; jsX = p.x; jsY = p.y; jsDX = 0; jsDY = 0;
+});
+window.addEventListener('mousemove', e => {
+  if (settings.mode !== 'joystick' || !jsActive) return;
+  const p = canvasPos(e);
+  jsDX = p.x - jsX; jsDY = p.y - jsY;
+  if (running && !paused) {
+    const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
+    if (dist > 8) targetAngle = Math.atan2(jsDY, jsDX);
+  }
+});
+window.addEventListener('mouseup', () => { if (settings.mode === 'joystick') jsActive = false; });
 
 // Keyboard fallback
 document.addEventListener('keydown', e => {
@@ -806,7 +925,7 @@ document.addEventListener('keydown', e => {
   if (ta !== null) targetAngle = ta;
 });
 
-// Mobile: touch joystick on canvas
+// Mobile: dual-mode touch handling
 function setupMobile() {
   isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (!isTouchDevice) return;
@@ -815,20 +934,31 @@ function setupMobile() {
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     const now = Date.now();
-    if (now - lastTapTime < 300) { togglePause(); lastTapTime = 0; return; }
+    if (now - lastTapTime < 300) { togglePause(); lastTapTime = 0; jsActive = false; return; }
     lastTapTime = now;
     const p = canvasPos(e.touches[0]);
-    jsActive = true; jsX = p.x; jsY = p.y; jsDX = 0; jsDY = 0;
+    if (settings.mode === 'joystick') {
+      jsActive = true; jsX = p.x; jsY = p.y; jsDX = 0; jsDY = 0;
+    } else {
+      // Direct mode: cursor follows finger
+      mouseX = p.x; mouseY = p.y; mouseOnCanvas = true;
+      if (running && !paused) targetAngle = Math.atan2(mouseY - snake[0].y, mouseX - snake[0].x);
+    }
   }, { passive: false });
 
   canvas.addEventListener('touchmove', e => {
     e.preventDefault();
-    if (!jsActive) return;
     const p = canvasPos(e.touches[0]);
-    jsDX = p.x - jsX; jsDY = p.y - jsY;
-    if (running && !paused) {
-      const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
-      if (dist > 8) targetAngle = Math.atan2(jsDY, jsDX);
+    if (settings.mode === 'joystick') {
+      if (!jsActive) return;
+      jsDX = p.x - jsX; jsDY = p.y - jsY;
+      if (running && !paused) {
+        const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
+        if (dist > 8) targetAngle = Math.atan2(jsDY, jsDX);
+      }
+    } else {
+      mouseX = p.x; mouseY = p.y;
+      if (running && !paused) targetAngle = Math.atan2(mouseY - snake[0].y, mouseX - snake[0].x);
     }
   }, { passive: false });
 
@@ -843,6 +973,32 @@ document.getElementById('soundBtn').addEventListener('click', () => {
   soundOn = AudioEngine.toggleBgm();
   document.getElementById('soundBtn').textContent = soundOn ? '🔊' : '🔇';
   if (!soundOn) AudioEngine.click();
+});
+
+// Settings panel
+const settingsPanel = document.getElementById('settingsPanel');
+const settingsBackdrop = document.getElementById('settingsBackdrop');
+function openSettings() { settingsPanel.classList.add('show'); settingsBackdrop.classList.add('show'); }
+function closeSettings() { settingsPanel.classList.remove('show'); settingsBackdrop.classList.remove('show'); saveSettings(); }
+document.getElementById('settingsBtn').addEventListener('click', () => { AudioEngine.click(); openSettings(); });
+settingsBackdrop.addEventListener('click', closeSettings);
+document.getElementById('closeSettings').addEventListener('click', closeSettings);
+
+document.getElementById('setMode').addEventListener('change', e => { settings.mode = e.target.value; saveSettings(); });
+const sliderMap = [
+  ['setCursorSize', 'cursorSize', 1],
+  ['setCursorAlpha', 'cursorAlpha', 1],
+  ['setCursorSens', 'cursorSens', 1],
+  ['setJoySize', 'joySize', 1],
+  ['setJoyAlpha', 'joyAlpha', 1],
+];
+sliderMap.forEach(([id, key, scale]) => {
+  document.getElementById(id).addEventListener('input', e => {
+    settings[key] = scale === 1 ? parseFloat(e.target.value) : parseInt(e.target.value);
+    updateSettingLabels();
+    saveSettings();
+    if (!running) draw();
+  });
 });
 
 // Export/Import
