@@ -105,58 +105,34 @@
   body.playing .skin-card { pointer-events: none; opacity: 0.5; cursor: default; }
   body.playing .skin-card.active { opacity: 0.8; }
 
-  /* Joystick */
-  .joystick-wrap { display: none; justify-content: center; margin-top: 10px; position: relative; }
-  .joystick-base {
-    width: 100px; height: 100px; border-radius: 50%;
-    background: rgba(255,255,255,0.03); border: 2px solid rgba(255,255,255,0.1);
-    position: relative; touch-action: none;
-  }
-  .joystick-knob {
-    position: absolute; width: 40px; height: 40px; border-radius: 50%;
-    background: rgba(233,69,96,0.5); border: 2px solid rgba(233,69,96,0.7);
-    top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
-  }
-  .mobile-pause {
-    display: none; width: 36px; height: 36px; border-radius: 50%;
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
-    color: #666; font-size: 0.65rem; cursor: pointer;
-    position: absolute; bottom: 8px; right: 8px; z-index: 9;
-    align-items: center; justify-content: center;
-  }
-
   @media (max-width: 700px) {
-    body { align-items: flex-start; padding-top: 4px; background: #080818; }
-    .main { flex-direction: column; align-items: center; gap: 6px; padding: 6px; }
+    body { align-items: flex-start; padding-top: 2px; background: #080818; overflow: hidden; }
+    .main { flex-direction: column; align-items: center; gap: 4px; padding: 4px; }
     .game-panel { max-width: 100%; width: 100%; }
-    h1 { font-size: 1.1rem; letter-spacing: 3px; margin-bottom: 2px; }
-    .top-bar { margin-bottom: 2px; }
-    .badge { font-size: 0.68rem; padding: 2px 7px; }
-    .progress-wrap { margin-bottom: 2px; height: 3px; }
-    .progress-label { font-size: 0.6rem; }
+    h1 { font-size: 1rem; letter-spacing: 2px; margin-bottom: 0; }
+    .top-bar { margin-bottom: 1px; }
+    .badge { font-size: 0.62rem; padding: 1px 6px; }
+    .progress-wrap { margin-bottom: 1px; height: 2px; }
+    .progress-label { font-size: 0.55rem; }
     .canvas-wrap { display: flex; justify-content: center; }
-    canvas { border-radius: 4px; }
-    .overlay h2 { font-size: 1.2rem; letter-spacing: 4px; }
-    .overlay button { padding: 7px 20px; font-size: 0.8rem; }
-    .diff-btn { font-size: 0.68rem; padding: 3px 9px; }
-    .msg { font-size: 0.75rem; height: 16px; }
+    canvas { border-radius: 4px; max-width: 100vw; }
+    .overlay h2 { font-size: 1.1rem; letter-spacing: 3px; }
+    .overlay button { padding: 6px 16px; font-size: 0.75rem; }
+    .diff-btn { font-size: 0.62rem; padding: 3px 8px; }
+    .msg { font-size: 0.7rem; height: 14px; }
     .tips { display: none; }
-    .diff-badge { font-size: 0.65rem; }
+    .diff-badge { font-size: 0.6rem; }
     .skin-panel {
-      width: 100%; max-width: 100%; border-radius: 10px 10px 0 0;
-      padding: 8px; max-height: 140px; overflow-y: auto; flex-shrink: 0; border: none;
+      width: 100%; max-width: 100%; border-radius: 8px 8px 0 0;
+      padding: 6px; max-height: 110px; overflow-y: auto; flex-shrink: 0; border: none;
       background: #0c0c20;
     }
-    .skin-grid { flex-direction: row; flex-wrap: wrap; gap: 3px; }
-    .skin-card { flex: 0 0 calc(33.3% - 2px); padding: 3px 5px; }
-    .skin-name { font-size: 0.65rem; }
-    .skin-score { font-size: 0.55rem; }
-    .skin-swatch { width: 20px; height: 20px; border-radius: 4px; }
-    .skin-panel h3 { font-size: 0.75rem; margin-bottom: 4px; letter-spacing: 2px; }
-  }
-  @media (min-width: 701px) {
-    .joystick-wrap { display: none !important; }
-    .mobile-pause { display: none !important; }
+    .skin-grid { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+    .skin-card { flex: 0 0 calc(33.3% - 2px); padding: 2px 4px; }
+    .skin-name { font-size: 0.6rem; }
+    .skin-score { font-size: 0.5rem; }
+    .skin-swatch { width: 18px; height: 18px; border-radius: 3px; }
+    .skin-panel h3 { font-size: 0.7rem; margin-bottom: 2px; letter-spacing: 1px; }
   }
 </style>
 </head>
@@ -183,13 +159,7 @@
       </div>
     </div>
     <div class="msg" id="msg"></div>
-    <div class="joystick-wrap" id="joystickWrap">
-      <div class="joystick-base" id="joystickBase">
-        <div class="joystick-knob" id="joystickKnob"></div>
-      </div>
-      <div class="mobile-pause" id="mobilePause">‖</div>
-    </div>
-    <div class="tips">鼠标移动控制方向 · <span>空格</span> 暂停</div>
+    <div class="tips">鼠标移动控制方向 · <span>空格</span> 暂停 · <span>双击</span>画布暂停</div>
   </div>
 
   <div class="skin-panel">
@@ -294,9 +264,14 @@ let score, high, running = false, paused = false;
 let particles = [], rainbowHue = 0;
 let unlockedSkins = new Set();
 let currentSkinId = 'classic';
-let mouseX = W / 2, mouseY = H / 4;
+let mouseX = -100, mouseY = -100; // offscreen until mouse enters canvas
+let mouseOnCanvas = false;
 let animId = null;
 let isTouchDevice = false;
+// Mobile joystick state (drawn on canvas)
+let jsActive = false, jsX = 0, jsY = 0, jsDX = 0, jsDY = 0;
+// Double-tap detection
+let lastTapTime = 0;
 
 function generateObstacles(count) {
   const obs = [];
@@ -641,6 +616,51 @@ function draw() {
     ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
   });
   ctx.globalAlpha = 1;
+
+  // Custom cursor (desktop only)
+  if (!isTouchDevice && mouseOnCanvas) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(233,69,96,0.7)';
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Crosshair lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.7;
+    const cl = 14;
+    ctx.beginPath(); ctx.moveTo(mouseX - cl, mouseY); ctx.lineTo(mouseX - 5, mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX + 5, mouseY); ctx.lineTo(mouseX + cl, mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX, mouseY - cl); ctx.lineTo(mouseX, mouseY - 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX, mouseY + 5); ctx.lineTo(mouseX, mouseY + cl); ctx.stroke();
+  }
+
+  // Mobile joystick (drawn on canvas, semi-transparent)
+  if (isTouchDevice && jsActive) {
+    const maxR = 40;
+    const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
+    const clampDist = Math.min(dist, maxR - 14);
+    const nx = dist > 0 ? (jsDX / dist) * clampDist : 0;
+    const ny = dist > 0 ? (jsDY / dist) * clampDist : 0;
+
+    ctx.globalAlpha = 0.35;
+    // Base ring
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(jsX, jsY, maxR, 0, Math.PI * 2); ctx.stroke();
+    // Knob
+    const kx = jsX + nx, ky = jsY + ny;
+    ctx.fillStyle = 'rgba(233,69,96,0.5)';
+    ctx.beginPath(); ctx.arc(kx, ky, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(233,69,96,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(kx, ky, 16, 0, Math.PI * 2); ctx.stroke();
+    // Direction indicator
+    if (dist > 8) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(jsX, jsY); ctx.lineTo(kx, ky); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawFood() {
@@ -751,15 +771,28 @@ function renderSkinPanel() {
 }
 
 // ============ INPUT ============
-canvas.addEventListener('mousemove', e => {
+function canvasPos(e) {
   const rect = canvas.getBoundingClientRect();
-  mouseX = (e.clientX - rect.left) * (W / rect.width);
-  mouseY = (e.clientY - rect.top) * (H / rect.height);
+  return {
+    x: (e.clientX - rect.left) * (W / rect.width),
+    y: (e.clientY - rect.top) * (H / rect.height),
+  };
+}
+
+// Desktop mouse
+canvas.addEventListener('mousemove', e => {
+  const p = canvasPos(e);
+  mouseX = p.x; mouseY = p.y; mouseOnCanvas = true;
   if (running && !paused) {
     targetAngle = Math.atan2(mouseY - snake[0].y, mouseX - snake[0].x);
   }
 });
+canvas.addEventListener('mouseleave', () => { mouseOnCanvas = false; });
+canvas.addEventListener('mouseenter', () => { mouseOnCanvas = true; });
+// Double-click to pause on desktop
+canvas.addEventListener('dblclick', e => { e.preventDefault(); togglePause(); });
 
+// Keyboard fallback
 document.addEventListener('keydown', e => {
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePause(); return; }
   if (!running || paused) return;
@@ -772,53 +805,34 @@ document.addEventListener('keydown', e => {
   if (ta !== null) targetAngle = ta;
 });
 
-// Joystick (mobile)
+// Mobile: touch joystick on canvas
 function setupMobile() {
   isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (!isTouchDevice) return;
   document.body.style.cursor = 'auto';
-  document.getElementById('joystickWrap').style.display = 'flex';
-  document.getElementById('mobilePause').style.display = 'flex';
 
-  const base = document.getElementById('joystickBase');
-  const knob = document.getElementById('joystickKnob');
-  let active = false;
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastTapTime < 300) { togglePause(); lastTapTime = 0; return; }
+    lastTapTime = now;
+    const p = canvasPos(e.touches[0]);
+    jsActive = true; jsX = p.x; jsY = p.y; jsDX = 0; jsDY = 0;
+  }, { passive: false });
 
-  function updateJoystick(e) {
-    if (!active) return;
-    const r = base.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const clamp = Math.min(dist, 30);
-    const nx = dist > 0 ? (dx / dist) * clamp : 0;
-    const ny = dist > 0 ? (dy / dist) * clamp : 0;
-    knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
-    if (running && !paused && dist > 6) {
-      targetAngle = Math.atan2(dy, dx);
-    }
-  }
-
-  base.addEventListener('touchstart', e => { e.preventDefault(); active = true; updateJoystick(e.touches[0]); }, { passive: false });
-  base.addEventListener('touchmove', e => { e.preventDefault(); updateJoystick(e.touches[0]); }, { passive: false });
-  base.addEventListener('touchend', () => { active = false; knob.style.transform = 'translate(-50%, -50%)'; });
-  base.addEventListener('mousedown', e => { e.preventDefault(); active = true; updateJoystick(e); });
-  window.addEventListener('mousemove', e => { updateJoystick(e); });
-  window.addEventListener('mouseup', () => { active = false; knob.style.transform = 'translate(-50%, -50%)'; });
-
-  document.getElementById('mobilePause').addEventListener('touchstart', e => { e.preventDefault(); togglePause(); });
-  document.getElementById('mobilePause').addEventListener('mousedown', e => { e.preventDefault(); togglePause(); });
-
-  // Canvas swipe fallback
-  let sx = 0, sy = 0;
-  canvas.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
   canvas.addEventListener('touchmove', e => {
-    if (!running || paused || active) return;
-    const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
-    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-    targetAngle = Math.atan2(dy, dx);
-    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-  }, { passive: true });
+    e.preventDefault();
+    if (!jsActive) return;
+    const p = canvasPos(e.touches[0]);
+    jsDX = p.x - jsX; jsDY = p.y - jsY;
+    if (running && !paused) {
+      const dist = Math.sqrt(jsDX * jsDX + jsDY * jsDY);
+      if (dist > 8) targetAngle = Math.atan2(jsDY, jsDX);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => { e.preventDefault(); jsActive = false; });
+  canvas.addEventListener('touchcancel', () => { jsActive = false; });
 }
 setupMobile();
 
