@@ -116,11 +116,38 @@
   body.playing .skin-card { pointer-events: none; opacity: 0.5; cursor: default; }
   body.playing .skin-card.active { opacity: 0.8; }
 
+  /* Touch d-pad */
+  .touch-pad {
+    display: none; position: absolute; inset: 2px; border-radius: 6px;
+    z-index: 8; pointer-events: none;
+  }
+  .touch-pad .zone {
+    position: absolute; pointer-events: auto;
+    width: 40%; height: 40%;
+  }
+  .touch-pad .zone-up    { top: 0;   left: 30%; right: 30%; height: 35%; }
+  .touch-pad .zone-down  { bottom: 0; left: 30%; right: 30%; height: 35%; }
+  .touch-pad .zone-left  { left: 0;   top: 25%; bottom: 25%; width: 35%; }
+  .touch-pad .zone-right { right: 0;  top: 25%; bottom: 25%; width: 35%; }
+  .touch-pad .zone-center { left: 35%; right: 35%; top: 35%; bottom: 35%; }
+  .touch-hint {
+    display: none; text-align: center; color: #555; font-size: 0.65rem;
+    margin-top: 4px;
+  }
   @media (max-width: 700px) {
     .main { flex-direction: column; align-items: center; }
+    .game-panel { max-width: 100%; }
     .skin-panel { width: 100%; max-width: 480px; }
     .skin-grid { flex-direction: row; flex-wrap: wrap; }
     .skin-card { flex: 0 0 calc(50% - 3px); }
+  }
+  @media (max-width: 480px) {
+    h1 { font-size: 1.3rem; letter-spacing: 3px; }
+    .badge { font-size: 0.7rem; padding: 2px 8px; }
+    .skin-panel { padding: 8px; }
+    .overlay h2 { font-size: 1.4rem; }
+    .overlay button { padding: 8px 24px; font-size: 0.9rem; }
+    .diff-btn { font-size: 0.7rem; padding: 4px 10px; }
   }
 </style>
 </head>
@@ -142,12 +169,20 @@
     <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
     <div class="canvas-wrap" id="canvasWrap">
       <canvas id="canvas"></canvas>
+      <div class="touch-pad" id="touchPad">
+        <div class="zone zone-up" id="zoneUp"></div>
+        <div class="zone zone-down" id="zoneDown"></div>
+        <div class="zone zone-left" id="zoneLeft"></div>
+        <div class="zone zone-right" id="zoneRight"></div>
+        <div class="zone zone-center" id="zoneCenter"></div>
+      </div>
       <div class="overlay" id="overlay">
         <div class="overlay-content" id="overlayContent"></div>
       </div>
     </div>
     <div class="msg" id="msg"></div>
-    <div class="tips">方向键 / <span>WASD</span> 控制 · <span>空格</span> 暂停</div>
+    <div class="touch-hint" id="touchHint">方向键 / <span>WASD</span> 控制 · <span>空格</span> 暂停</div>
+    <div class="tips" id="tipsDesktop">方向键 / <span>WASD</span> 控制 · <span>空格</span> 暂停</div>
   </div>
 
   <div class="skin-panel">
@@ -269,9 +304,11 @@ function generateObstacles(count) {
 
 let snake, food, dir, nextDir, score, high, speed, timer, frame;
 let running = false, paused = false;
-let particles = [], rainbowHue = 0;
+let particles = [], rings = [], rainbowHue = 0;
 let unlockedSkins = new Set();
 let currentSkinId = 'classic';
+let touchStartX = 0, touchStartY = 0;
+let isTouchDevice = false;
 
 const SKINS = [
   { id: 'classic', name: '经典绿',   score: 0,    desc: '初心之绿' },
@@ -377,7 +414,7 @@ function init() {
   snake = [{ x: mid, y: ROWS - 3 }, { x: mid, y: ROWS - 2 }, { x: mid, y: ROWS - 1 }];
   dir = { x: 0, y: -1 }; nextDir = { x: 0, y: -1 };
   const d = DIFFICULTIES[difficulty];
-  score = 0; speed = d.speed; particles = []; frame = 0;
+  score = 0; speed = d.speed; particles = []; rings = []; frame = 0;
   obstacles = generateObstacles(d.obstacles);
   food = spawnFood();
   document.getElementById('score').textContent = '0';
@@ -397,17 +434,57 @@ function spawnFood() {
   return free[Math.floor(Math.random() * free.length)];
 }
 
-function spawnParticles(x, y, color, count = 6) {
+function spawnParticles(x, y, color, count = 20) {
+  const cx = x * CELL + CELL / 2;
+  const cy = y * CELL + CELL / 2;
+  const hue = parseInt(color.match(/hsl\((\d+)/)?.[1]) || 30;
+
+  // Sparkle burst - small fast dots in all directions
   for (let i = 0; i < count; i++) {
-    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.2 + Math.random() * 4;
     particles.push({
-      x: x * CELL + CELL / 2, y: y * CELL + CELL / 2,
-      vx: Math.cos(angle) * (1.5 + Math.random() * 2.5),
-      vy: Math.sin(angle) * (1.5 + Math.random() * 2.5),
-      life: 1, decay: 0.025 + Math.random() * 0.04,
-      color, size: 1.5 + Math.random() * 3,
+      type: 'sparkle',
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1.5,
+      life: 1, decay: 0.018 + Math.random() * 0.035,
+      color, size: 0.8 + Math.random() * 2.2,
+      hue,
     });
   }
+
+  // Starbursts - larger, slower, diamond-shaped
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI * 2 / 6) * i + Math.random() * 0.2;
+    const speed = 0.6 + Math.random() * 1.2;
+    particles.push({
+      type: 'starburst',
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.8,
+      life: 1, decay: 0.012 + Math.random() * 0.02,
+      color, size: 3 + Math.random() * 4,
+      hue, rot: Math.random() * Math.PI * 2, rotSpeed: (Math.random() - 0.5) * 0.3,
+    });
+  }
+
+  // Trail particles - follow behind, linger
+  for (let i = 0; i < 4; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.3 + Math.random() * 0.5;
+    particles.push({
+      type: 'trail',
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.006 + Math.random() * 0.01,
+      color, size: 2 + Math.random() * 3, hue,
+    });
+  }
+
+  // Ring burst
+  rings.push({ x: cx, y: cy, radius: 0, maxRadius: CELL * 1.2, life: 1, color, hue });
 }
 
 function step() {
@@ -504,9 +581,25 @@ function floatScore() {
 }
 
 function updateParticles() {
+  // Update particles
   for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    // Gravity
+    p.vy += 0.03;
+    // Friction
+    p.vx *= 0.985; p.vy *= 0.985;
+    // Rotation for starbursts
+    if (p.rot !== undefined) p.rot += p.rotSpeed;
+    p.life -= p.decay;
     if (p.life <= 0) particles.splice(i, 1);
+  }
+  // Update rings
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i];
+    r.radius += (r.maxRadius - r.radius) * 0.15;
+    r.life -= 0.025;
+    if (r.life <= 0 || r.radius >= r.maxRadius * 0.98) rings.splice(i, 1);
   }
 }
 
@@ -873,10 +966,39 @@ function drawStar(cx, cy, outerR, innerR, points) {
 }
 
 function drawParticles() {
+  // Rings first (behind particles)
+  rings.forEach(r => {
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = r.life * 0.7;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = r.color; ctx.shadowBlur = 6 * r.life;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+  });
+  // Particles
   particles.forEach(p => {
-    ctx.fillStyle = p.color;
     ctx.globalAlpha = p.life;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = p.color; ctx.shadowBlur = 3 * p.life;
+    ctx.fillStyle = p.color;
+
+    if (p.type === 'starburst') {
+      // Diamond shape
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
+      const s = p.size;
+      ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.6, 0); ctx.lineTo(0, s); ctx.lineTo(-s * 0.6, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (p.type === 'trail') {
+      // Soft dot
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      // Inner bright core
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.4, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // Sparkle: bright dot with slight variation
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
   });
   ctx.globalAlpha = 1;
 }
@@ -969,15 +1091,64 @@ document.getElementById('soundBtn').addEventListener('click', () => {
   if (!soundOn) AudioEngine.click();
 });
 
+function handleDir(dx, dy) {
+  if (!running || paused) return;
+  if (dx === 0 && dy === -1 && dir.y === 0) nextDir = { x: 0, y: -1 };
+  if (dx === 0 && dy === 1 && dir.y === 0) nextDir = { x: 0, y: 1 };
+  if (dx === -1 && dy === 0 && dir.x === 0) nextDir = { x: -1, y: 0 };
+  if (dx === 1 && dy === 0 && dir.x === 0) nextDir = { x: 1, y: 0 };
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePause(); return; }
-  if (!running || paused) return;
   const key = e.key.toLowerCase();
-  if ((key === 'arrowup' || key === 'w') && dir.y === 0) nextDir = { x: 0, y: -1 };
-  if ((key === 'arrowdown' || key === 's') && dir.y === 0) nextDir = { x: 0, y: 1 };
-  if ((key === 'arrowleft' || key === 'a') && dir.x === 0) nextDir = { x: -1, y: 0 };
-  if ((key === 'arrowright' || key === 'd') && dir.x === 0) nextDir = { x: 1, y: 0 };
+  if (key === 'arrowup' || key === 'w') handleDir(0, -1);
+  if (key === 'arrowdown' || key === 's') handleDir(0, 1);
+  if (key === 'arrowleft' || key === 'a') handleDir(-1, 0);
+  if (key === 'arrowright' || key === 'd') handleDir(1, 0);
 });
+
+// ============ MOBILE TOUCH ============
+function setupMobile() {
+  isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (!isTouchDevice) return;
+
+  document.getElementById('touchPad').style.display = 'block';
+  document.getElementById('touchHint').style.display = 'block';
+  document.getElementById('tipsDesktop').style.display = 'none';
+
+  // Virtual d-pad
+  const dirs = [
+    ['zoneUp', 0, -1], ['zoneDown', 0, 1], ['zoneLeft', -1, 0], ['zoneRight', 1, 0],
+  ];
+  dirs.forEach(([id, dx, dy]) => {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); handleDir(dx, dy); });
+    el.addEventListener('mousedown', e => { e.preventDefault(); handleDir(dx, dy); });
+  });
+  // Center zone = pause
+  document.getElementById('zoneCenter').addEventListener('touchstart', e => {
+    e.preventDefault(); togglePause();
+  });
+
+  // Swipe on canvas for direction
+  canvas.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY;
+  }, { passive: true });
+  canvas.addEventListener('touchend', e => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+    const minSwipe = 20;
+    if (Math.abs(dx) < minSwipe && Math.abs(dy) < minSwipe) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      handleDir(dx > 0 ? 1 : -1, 0);
+    } else {
+      handleDir(0, dy > 0 ? 1 : -1);
+    }
+  });
+}
+setupMobile();
 
 document.getElementById('resetLink').addEventListener('click', () => {
   if (!confirm('确定重置所有皮肤进度吗？已解锁的皮肤将丢失。')) return;
@@ -1045,7 +1216,23 @@ document.getElementById('importLink').addEventListener('click', () => {
   input.click();
 });
 
+// ============ CANVAS SCALING ============
+function applyScale() {
+  const maxW = Math.min(window.innerWidth - 32, 520);
+  if (isTouchDevice && maxW < canvas.width) {
+    const s = maxW / canvas.width;
+    canvas.style.transform = `scale(${s})`;
+    canvas.style.transformOrigin = 'top left';
+    canvas.style.marginBottom = `${-(canvas.height - canvas.height * s)}px`;
+  } else {
+    canvas.style.transform = '';
+    canvas.style.marginBottom = '';
+  }
+}
+window.addEventListener('resize', applyScale);
+
 // ============ INIT ============
+applyScale();
 renderSkinPanel();
 init();
 updateProgress();
